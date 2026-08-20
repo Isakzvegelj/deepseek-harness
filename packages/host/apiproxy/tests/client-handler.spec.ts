@@ -123,6 +123,7 @@ function scriptedApi(overrides: {
       ...overrides.credentials,
     },
     llm: {
+      codexUsage: r => ok(r, { available: false, windows: [], error: 'stub', fetchedAt: new Date().toISOString() }),
       providers: r => ok(r, { providers: [] }),
       models: r => ok(r, { groups: [], failures: [] }),
       discoverModels: err,
@@ -750,6 +751,7 @@ describe('config unary surface', () => {
         unset: record('credentials.unset', r => ok(r, {})),
       },
       llm: {
+        codexUsage: record('llm.codexUsage', r => ok(r, { available: false, windows: [], error: 'stub', fetchedAt: new Date().toISOString() })),
         providers: record('llm.providers', r => ok(r, { providers: [providerRow] })),
         models: record('llm.models', r => ok(r, { groups: [group], failures: [] })),
         discoverModels: record('llm.discoverModels', r => ok(r, { models: [{ id: 'acme-large', contextWindow: 65536 }] })),

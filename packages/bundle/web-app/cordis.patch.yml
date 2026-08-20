@@ -258,6 +258,10 @@
     - id: ui-jobs
       name: '@deepseek-ai/dsh-client-ui-jobs'
 
+    # ChatGPT/Codex plan usage meter in the frame overlay.
+    - id: ui-codex-usage
+      name: '@deepseek-ai/dsh-client-ui-codex-usage'
+
     # Goal surface: GoalBar in the input dock over the goal session projection.
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'

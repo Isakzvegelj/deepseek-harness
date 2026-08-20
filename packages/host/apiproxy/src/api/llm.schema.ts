@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
-import type { ConfigurableProviderView, DiscoveredModelView } from './llm.ts'
+import type { CodexUsageView, ConfigurableProviderView, DiscoveredModelView } from './llm.ts'
 import { modelCatalogFailureSchema, modelProviderGroupSchema } from './sessions.schema.ts'
 
 /** ConfigurableProviderView row of llm.providers. */
@@ -18,6 +18,22 @@ export const configurableProviderViewSchema = z.object({
   active: z.boolean(),
   declared: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ConfigurableProviderView>>
+
+/** llm.codexUsage request payload. */
+export const llmCodexUsageRequestSchema = z.object({}) satisfies z.ZodType<Wire<RequestPayload<'llm.codexUsage'>>>
+
+/** llm.codexUsage response value. */
+export const llmCodexUsageValueSchema = z.object({
+  available: z.boolean(),
+  planType: z.string().min(1).optional(),
+  windows: z.array(z.object({
+    usedPercent: z.number().min(0).max(100),
+    resetAt: z.number().optional(),
+    limitWindowSeconds: z.number().positive().optional(),
+  })),
+  error: z.string().min(1).optional(),
+  fetchedAt: z.iso.datetime(),
+}) satisfies z.ZodType<Wire<CodexUsageView>>
 
 /** llm.providers request payload. */
 export const llmProvidersRequestSchema = z.object({}) satisfies z.ZodType<Wire<RequestPayload<'llm.providers'>>>
