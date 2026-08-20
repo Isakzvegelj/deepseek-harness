@@ -32,7 +32,37 @@ export interface ConfigurableProviderView {
 }
 
 /** Llm-domain unary methods (the map keys llm.* of RpcMethodMap). */
+export interface CodexUsageWindowView {
+  /** Provider-reported percentage consumed in this window. */
+  usedPercent: number
+  /** Unix timestamp for the next reset, when provided. */
+  resetAt?: number
+  /** Window duration in seconds, when provided. */
+  limitWindowSeconds?: number
+}
+
+/** Host-fetched ChatGPT/Codex plan usage. */
+export interface CodexUsageView {
+  /** Whether a Codex credential was available and the request succeeded. */
+  available: boolean
+  /** Current account plan label, when returned by ChatGPT. */
+  planType?: string
+  /** Primary and secondary rate-limit windows. */
+  windows: CodexUsageWindowView[]
+  /** Human-readable failure, never containing the credential. */
+  error?: string
+  /** Fetch time as an ISO timestamp. */
+  fetchedAt: string
+}
+
+/** Host-side LLM configuration and model-catalog RPC methods. */
 export interface LlmApi {
+  /**
+   * Fetch the current ChatGPT/Codex plan windows using the host's configured
+   * CODEX_ACCESS_TOKEN. The credential never crosses the RPC boundary.
+   */
+  codexUsage(request: RpcRequest<{}>, signal?: AbortSignal): Promise<RpcResponse<CodexUsageView>>
+
   /**
    * List every configurable provider with its live/dormant state, in
    * directory declaration order. Routes registered outside the directory

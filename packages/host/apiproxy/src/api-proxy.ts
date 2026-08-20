@@ -4,9 +4,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
@@ -36,7 +36,7 @@ import {
 import type { PresetBearingSession } from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {
-  ApiProxy, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
+  ApiProxy, CodexUsageView, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
   ModelCatalogFailure, ModelProviderGroup,
   ModelReasoning, MuxFrame, PromptContentPart, QuestionResponsePayload, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
   QueuedInboxItem, SessionSummary, SettingsNamespaceView, SubagentAddress, JobView, ToolEventView,
@@ -318,6 +318,75 @@ async function buildModelCatalog(ctx: Context): Promise<{
   return {
     groups: catalog.flatMap(item => item.kind === 'group' ? [item.group] : []).filter(group => group.models.length > 0),
     failures: catalog.flatMap(item => item.kind === 'failure' ? [item.failure] : []),
+  }
+}
+
+/**
+ * Resolve the host-local Codex bearer without exposing it to the browser.
+ * Codex's normal sign-in writes OAuth credentials to CODEX_HOME/auth.json,
+ * while deployments may deliberately use the DSH credential service or an
+ * explicit CODEX_ACCESS_TOKEN. Prefer explicit DSH-managed values.
+ */
+async function resolveCodexAccessToken(ctx: Context): Promise<string | undefined> {
+  const credentials = ctx.get('credentials')
+  const resolved = credentials === undefined
+    ? undefined
+    : await credentials.resolve(credentialRef('CODEX_ACCESS_TOKEN'))
+  const configured = (resolved?.value ?? (credentials === undefined ? process.env.CODEX_ACCESS_TOKEN : undefined))?.trim()
+  if (configured !== undefined && configured.length > 0) return configured
+
+  const authPath = join(process.env.CODEX_HOME?.trim() || join(homedir(), '.codex'), 'auth.json')
+  try {
+    const parsed: unknown = JSON.parse(await readFile(authPath, 'utf8'))
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    const tokens = (parsed as { tokens?: unknown }).tokens
+    if (typeof tokens !== 'object' || tokens === null) return undefined
+    const accessToken = (tokens as { access_token?: unknown }).access_token
+    return typeof accessToken === 'string' && accessToken.trim().length > 0 ? accessToken.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Fetch the host-local Codex quota without exposing its bearer token to the browser. */
+const CODEX_USAGE_TIMEOUT_MS = 10_000
+
+async function fetchCodexUsage(ctx: Context, signal: AbortSignal | undefined): Promise<CodexUsageView> {
+  const fetchedAt = new Date().toISOString()
+  const token = await resolveCodexAccessToken(ctx)
+  if (token === undefined) return { available: false, windows: [], error: 'Codex is not connected', fetchedAt }
+  const timeoutSignal = AbortSignal.timeout(CODEX_USAGE_TIMEOUT_MS)
+  const requestSignal = signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal])
+  try {
+    const response = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'User-Agent': 'codex-cli' },
+      redirect: 'error',
+      signal: requestSignal,
+    })
+    if (!response.ok) return { available: false, windows: [], error: `Usage request failed (${response.status})`, fetchedAt }
+    const payload: unknown = await response.json()
+    if (typeof payload !== 'object' || payload === null) return { available: false, windows: [], error: 'Usage response was invalid', fetchedAt }
+    const rateLimit = (payload as { rate_limit?: unknown }).rate_limit
+    const windows = typeof rateLimit === 'object' && rateLimit !== null
+      ? ['primary_window', 'secondary_window'].flatMap((key) => {
+        const candidate = (rateLimit as Record<string, unknown>)[key]
+        if (typeof candidate !== 'object' || candidate === null) return []
+        const used = (candidate as { used_percent?: unknown }).used_percent
+        if (typeof used !== 'number' || !Number.isFinite(used)) return []
+        const resetAt = (candidate as { reset_at?: unknown }).reset_at
+        const seconds = (candidate as { limit_window_seconds?: unknown }).limit_window_seconds
+        return [{
+          usedPercent: Math.max(0, Math.min(100, used)),
+          ...typeof resetAt === 'number' && Number.isFinite(resetAt) ? { resetAt } : {},
+          ...typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0 ? { limitWindowSeconds: seconds } : {},
+        }]
+      })
+      : []
+    const planType = (payload as { plan_type?: unknown }).plan_type
+    return { available: true, windows, ...typeof planType === 'string' && planType.trim().length > 0 ? { planType: planType.trim() } : {}, fetchedAt }
+  } catch (error: unknown) {
+    if (signal?.aborted) throw error
+    return { available: false, windows: [], error: timeoutSignal.aborted ? 'Usage request timed out' : 'Usage request failed', fetchedAt }
   }
 }
 
@@ -3282,6 +3351,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     },
 
     llm: {
+      async codexUsage(request, signal) {
+        return ok(request, await fetchCodexUsage(ctx, signal))
+      },
+
       providers(request) {
         const registered = ctx.llm.listProviders()
         const active = new Set(registered.map(provider => provider.id))

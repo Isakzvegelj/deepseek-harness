@@ -1,0 +1,18 @@
+.root { position: fixed; top: 10px; right: 14px; z-index: 20; pointer-events: auto; color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 3px 9px; color: inherit; background: var(--dsw-specific-menu); border: 1px solid var(--dsw-alias-border-l1); border-radius: 999px; box-shadow: var(--dsw-shadow-lv1); cursor: pointer; }
+.trigger:hover { color: var(--dsw-alias-label-primary); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-interactive-bg-active); }
+.summary { color: var(--dsw-alias-label-tertiary); }
+.card { position: absolute; top: 34px; right: 0; width: 220px; padding: 12px; background: var(--dsw-specific-menu); border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; box-shadow: var(--dsw-shadow-lv3); }
+.cardHeader, .rowLabel { display: flex; justify-content: space-between; align-items: center; }
+.cardHeader { margin-bottom: 12px; color: var(--dsw-alias-label-primary); }
+.cardHeader h2 { margin: 0; font-size: inherit; font-weight: 600; }
+.refresh { color: inherit; background: none; border: 0; cursor: pointer; font-size: 16px; }
+.row { margin-top: 10px; }
+.rowLabel { color: var(--dsw-alias-label-secondary); }
+.reset { margin-top: 2px; color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+.track { height: 6px; margin-top: 5px; overflow: hidden; background: var(--dsw-alias-border-l1); border-radius: 999px; }
+.fill { height: 100%; background: var(--dsw-alias-interactive-bg-active); border-radius: inherit; }
+.message, .caption { color: var(--dsw-alias-label-tertiary); }
+.message { margin: 0; line-height: 1.4; }
+.caption { margin: 12px 0 0; font-size: 11px; }
